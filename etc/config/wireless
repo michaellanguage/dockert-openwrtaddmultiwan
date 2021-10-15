@@ -1,0 +1,16 @@
+config 'wifi-device'    'radio0'
+    option 'type'       'mac80211'
+    option 'phy'        "phy0"
+    option 'hwmode'     "11g"
+    option 'htmode'     "HT20"
+    option 'channel'    "6"
+
+config 'wifi-iface'     "wlan0"
+    option 'device'     'radio0'
+    option 'network'    'lan'
+    option 'mode'       'ap'
+    option 'ifname'     "wlan0"
+    option 'ssid'       "KANGAROO"
+    option 'encryption' "psk2"
+    option 'key'        "Ezege10302021"
+    option 'disassoc_low_ack' '0'
