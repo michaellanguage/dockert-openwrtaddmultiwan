@@ -209,7 +209,7 @@ add_multiple_wan(){
 	for multiwan in "${WAN_LIST[@]}"; do
 		indexwan=$(($indexwan+1))
 		sudo ip link add "wan$indexwan" link $multiwan type macvlan
-		#sudo ip link set dev "wan$indexwan" promisc on
+		sudo ip link set dev "wan$indexwan" promisc on
 		sudo ip link set "wan$indexwan" netns  $CONTAINER
 		sudo ip netns exec $CONTAINER ifconfig "wan$indexwan" up
 		# sudo ip netns exec $CONTAINER ip address add 192.168.16.100/24 dev "wan$indexwan"
