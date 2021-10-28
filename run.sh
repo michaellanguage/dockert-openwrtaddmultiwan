@@ -206,6 +206,7 @@ _prepare_network() {
 add_multiple_wan(){
 	
 	indexwan=3
+	while true ; do
 	for multiwan in "${WAN_LIST[@]}"; do
 	indexwan=$(($indexwan+1))
 	if  ls /sys/class/net/ | grep --quiet $multiwan; then
@@ -221,6 +222,10 @@ fi
 
 		# sudo ip netns exec $CONTAINER ip address add 192.168.16.100/24 dev "wan$indexwan"
 	done
+	
+	sleep 30
+done
+
 	
 
 }
@@ -238,7 +243,9 @@ main() {
 	_prepare_wifi
 	_prepare_network
 
-   add_multiple_wan
+   #add_multiple_wan
+   
+   add_multiple_wan & disown
 	 
 	_reload_fw
 	
