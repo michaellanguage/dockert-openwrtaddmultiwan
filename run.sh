@@ -243,8 +243,6 @@ main() {
 
 	_prepare_wifi
 	_prepare_network
-
-   #add_multiple_wan
    
    add_multiple_wan & disown
    
