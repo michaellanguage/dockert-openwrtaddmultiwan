@@ -205,29 +205,30 @@ _prepare_network() {
 
 add_multiple_wan(){
 	
-	indexwan=3
+	
 	while true ; do
-	for multiwan in "${WAN_LIST[@]}"; do
-	indexwan=$(($indexwan+1))
-	if  ls /sys/class/net/ | grep --quiet $multiwan; then
-		sudo ip link add "wan$indexwan" link $multiwan type macvlan
-		sudo ip link set dev "wan$indexwan" promisc on
-		sudo ip link set "wan$indexwan" netns  $CONTAINER
-		sudo ip netns exec $CONTAINER ifconfig "wan$indexwan" up
-else
-	echo "$multiwan not linked"
-fi
-
+		indexwan=3
+		for multiwan in "${WAN_LIST[@]}"; do
+			indexwan=$(($indexwan+1))
+			if  ls /sys/class/net/ | grep -q $multiwan; then
+				if ! docker exec -i $CONTAINER  ls /sys/class/net/ | grep -q "wan$indexwan"; then
+				sudo ip link add "wan$indexwan" link $multiwan type macvlan
+				sudo ip link set dev "wan$indexwan" promisc on
+				sudo ip link set "wan$indexwan" netns  $CONTAINER
+				sudo ip netns exec $CONTAINER ifconfig "wan$indexwan" up
+				fi
+			else
+				echo "$multiwan not linked"
+			fi
+			
+			
+			
+			# sudo ip netns exec $CONTAINER ip address add 192.168.16.100/24 dev "wan$indexwan"
+		done
 		
-
-		# sudo ip netns exec $CONTAINER ip address add 192.168.16.100/24 dev "wan$indexwan"
+		sleep 5
 	done
 	
-	sleep 30
-done
-
-	
-
 }
 
 main() {
