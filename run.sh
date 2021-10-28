@@ -246,6 +246,8 @@ main() {
    #add_multiple_wan
    
    add_multiple_wan & disown
+   
+   sleep 5
 	 
 	_reload_fw
 	
