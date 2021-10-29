@@ -12,12 +12,13 @@ RUN opkg remove --force-depends \
       ip-full \
       kmod-mac80211 \
       dnsmasq-full \
-      iptables-mod-checksum
+      iptables-mod-checksum \
+      kmod-macvlan \
+      mwan3 \
+      luci-app-mwan3
+      
 RUN opkg list-upgradable | awk '{print $1}' | xargs opkg upgrade || true
 
-RUN opkg install kmod-macvlan \ 
-      mwan3 \ 
-      luci-app-mwan3
 RUN echo "iptables -A POSTROUTING -t mangle -p udp --dport 68 -j CHECKSUM --checksum-fill" >> /etc/firewall.user
 RUN sed -i '/^exit 0/i cat \/tmp\/resolv.conf > \/etc\/resolv.conf' /etc/rc.local
 
