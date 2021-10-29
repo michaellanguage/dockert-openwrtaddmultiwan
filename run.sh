@@ -216,6 +216,7 @@ add_multiple_wan(){
 				sudo ip link set dev "wan$indexwan" promisc on
 				sudo ip link set "wan$indexwan" netns  $CONTAINER
 				sudo ip netns exec $CONTAINER ifconfig "wan$indexwan" up
+				docker exec -i $CONTAINER /etc/init.d/mwan3 restart
 				fi
 			else
 				echo "$multiwan not linked"
