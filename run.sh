@@ -227,7 +227,7 @@ add_multiple_wan(){
 			# sudo ip netns exec $CONTAINER ip address add 192.168.16.100/24 dev "wan$indexwan"
 		done
 		
-		sleep 5
+		sleep 30
 	done
 	
 }
