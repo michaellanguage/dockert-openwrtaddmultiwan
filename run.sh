@@ -134,6 +134,7 @@ _create_or_start_container() {
 
 _reload_fw() {
 	echo "* reloading firewall rules"
+	docker exec -i $CONTAINER /etc/init.d/mwan3 restart
 	docker exec -i $CONTAINER sh -c '
 		for iptables in iptables ip6tables; do
 			for table in filter nat mangle; do
@@ -203,6 +204,34 @@ _prepare_network() {
 	sudo dhcpcd -q $LAN_IFACE
 }
 
+
+
+monitor_parent_wan(){
+	
+	while true ; do
+			if  ls /sys/class/net/ | grep -q $WAN_PARENT; then
+				if ! docker exec -i $CONTAINER  ls /sys/class/net/ | grep -q "eth1"; then
+					sudo ip link add "eth1" link $WAN_PARENT type macvlan
+					sudo ip link set dev "eth1" promisc on
+					sudo ip link set "eth1" netns  $CONTAINER
+					sudo ip netns exec $CONTAINER ifconfig "eth1" up
+					sleep `/usr/bin/shuf -i 6-10 -n 1`;
+                                        _reload_fw
+				fi
+			else
+				echo "$WAN_PARENT not linked yet"
+			fi
+		
+		sleep `/usr/bin/shuf -i 6-10 -n 1`;
+	done
+	
+}
+
+
+
+
+
+
 add_multiple_wan(){
 	
 	
@@ -216,10 +245,12 @@ add_multiple_wan(){
 				sudo ip link set dev "wan$indexwan" promisc on
 				sudo ip link set "wan$indexwan" netns  $CONTAINER
 				sudo ip netns exec $CONTAINER ifconfig "wan$indexwan" up
-				docker exec -i $CONTAINER /etc/init.d/mwan3 restart
+				sleep `/usr/bin/shuf -i 6-10 -n 1`;
+				_reload_fw
 				fi
 			else
-				echo "$multiwan not linked"
+				echo "$multiwan not linked yet"
+				
 			fi
 			
 			
@@ -227,7 +258,7 @@ add_multiple_wan(){
 			# sudo ip netns exec $CONTAINER ip address add 192.168.16.100/24 dev "wan$indexwan"
 		done
 		
-		sleep 30
+		sleep `/usr/bin/shuf -i 6-10 -n 1`;
 	done
 	
 }
@@ -245,10 +276,9 @@ main() {
 	_prepare_wifi
 	_prepare_network
    
-   add_multiple_wan & disown
-   
-   sleep 5
-	 
+add_multiple_wan & disown
+monitor_parent_wan & disown
+sleep `/usr/bin/shuf -i 5-10 -n 1`;
 	_reload_fw
 	
 	echo "* ready"
