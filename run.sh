@@ -222,10 +222,14 @@ MAIN_ETH_MAC=`sudo docker network inspect $WAN_NAME -f "{{.Containers}}"  | grep
 					sudo ip link add "eth1" link $WAN_PARENT type macvlan
 					sudo ip link set dev "eth1" promisc on
 					sudo ip link set "eth1" netns  $CONTAINER
-                                       if [ ! -z "$MAIN_ETH_MAC" -a "$MAIN_ETH_MAC" != " " ]; then
-	                                   sudo ip netns exec $CONTAINER ip link set dev "eth1" address "$MAIN_ETH_MAC"
-                                       fi
 					sudo ip netns exec $CONTAINER ifconfig "eth1" up
+                                       if [ ! -z "$MAIN_ETH_MAC" -a "$MAIN_ETH_MAC" != " " ]; then
+				           docker exec -i $CONTAINER  ip link set dev "eth1" down   
+                                       #sudo ip netns exec $CONTAINER ip link set dev "eth1" down 
+	                                   sudo ip netns exec $CONTAINER ip link set dev "eth1" address "$MAIN_ETH_MAC"
+					   sudo ip netns exec $CONTAINER ifconfig "eth1" up
+                                       fi
+					#sudo ip netns exec $CONTAINER ifconfig "eth1" up
 					sleep `/usr/bin/shuf -i 5-10 -n 1`;
                                         #_reload_fw
 					#docker exec -i $CONTAINER /etc/init.d/mwan3 restart
