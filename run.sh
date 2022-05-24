@@ -216,6 +216,7 @@ _prepare_network() {
 
 
 restart_container() {
+	local  LISTJOBS=$1
 	while true; do
 		RUNNING=$(docker inspect --format="{{ .State.Running }}" $CONTAINER)
 		if [ "$RUNNING" == "false" ]; then
@@ -229,7 +230,6 @@ restart_container() {
 			 modprobe iwlwifi
 			 modprobe iwldvm
 			 sleep 3;
-	 		 local  LISTJOBS=$1
 	 		for pid in $LISTJOBS; do kill -9 $pid ; done ; 
 			exit 1;
 		fi
