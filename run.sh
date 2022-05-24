@@ -342,7 +342,6 @@ sleep 1;
 #monitor_parent_wan & disown	
 #docker exec -i $CONTAINER /etc/init.d/mwan3 restart
 	echo "* ready"
-	pids=( $(jobs -p) )
 }
 
 main
