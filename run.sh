@@ -134,8 +134,6 @@ _create_or_start_container() {
 
 _reload_fw() {
 	echo "* reloading firewall rules"
-	docker exec -i $CONTAINER /sbin/wifi down radio0
-	docker exec -i $CONTAINER /sbin/wifi up radio0
 	docker exec -i $CONTAINER /etc/init.d/mwan3 restart
 	docker exec -i $CONTAINER sh -c '
 		for iptables in iptables ip6tables; do
@@ -144,6 +142,9 @@ _reload_fw() {
 			done
 		done
 		/sbin/fw3 -q restart'
+		
+		docker exec -i $CONTAINER /sbin/wifi down radio0 
+		docker exec -i $CONTAINER /sbin/wifi up radio0
 		
 }
 
@@ -220,7 +221,8 @@ restart_container() {
 	while true; do
 		RUNNING=$(docker inspect --format="{{ .State.Running }}" $CONTAINER)
 		if [ "$RUNNING" == "false" ]; then
-			 echo "$CONTAINER $RUNNING is not running. Sleep for 1 second exiting" >> /home/ifeanyi/Downloads/dockert-openwrtaddmultiwan/ss.txt
+			 echo "$CONTAINER $RUNNING is not running. Sleep for 1 second exiting" 
+			 	for pid in $LISTJOBS; do kill -9 $pid ; done ; 
 			 _cleanup
 			 ip li delete "$WIFI_PHY" 2>/dev/null
 			 modprobe iwlwifi
@@ -230,7 +232,6 @@ restart_container() {
 			 modprobe iwlwifi
 			 modprobe iwldvm
 			 sleep 3;
-	 		for pid in $LISTJOBS; do kill -9 $pid ; done ; 
 			exit 1;
 		fi
 		sleep  1;
@@ -324,9 +325,8 @@ main() {
 	mkdir -p /var/run/netns
 	ln -sf /proc/$pid/ns/net /var/run/netns/$CONTAINER
 
-sleep 1;
+
 	_prepare_wifi
-	sleep 1;
 	_prepare_network
 
 MAIN_ETH_MAC=`ip netns exec $CONTAINER ip link show eth1 | grep link/ether | awk '{print $2}'` 
@@ -337,12 +337,13 @@ sleep 1;
 monitor_parent_wan & disown
 LISTJOBS=$(jobs -p)
 restart_container $LISTJOBS & disown
-sleep 1;
+sleep 5;
 	_reload_fw
 #monitor_parent_wan & disown	
 #docker exec -i $CONTAINER /etc/init.d/mwan3 restart
 	echo "* ready"
 }
+
 
 main
 trap "_cleanup" EXIT
