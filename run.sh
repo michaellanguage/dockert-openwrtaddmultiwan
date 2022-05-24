@@ -134,7 +134,8 @@ _create_or_start_container() {
 
 _reload_fw() {
 	echo "* reloading firewall rules"
-	docker exec -i $CONTAINER /sbin/wifi reload
+	docker exec -i $CONTAINER /sbin/wifi down radio0
+	docker exec -i $CONTAINER /sbin/wifi up radio0
 	docker exec -i $CONTAINER /etc/init.d/mwan3 restart
 	docker exec -i $CONTAINER sh -c '
 		for iptables in iptables ip6tables; do
