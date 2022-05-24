@@ -38,12 +38,12 @@ _cleanup() {
 	echo "* stopping container"
 	docker stop $CONTAINER >/dev/null
 	echo "* cleaning up netns symlink"
-	sudo rm -rf /var/run/netns/$CONTAINER
+	rm -rf /var/run/netns/$CONTAINER
 	echo "* removing host $LAN_DRIVER interface"
 	if [[ $LAN_DRIVER != "bridge" ]] ; then
-		sudo ip link del dev $LAN_IFACE
+		ip link del dev $LAN_IFACE
 	elif [[ $LAN_PARENT =~ \. ]] ; then
-		sudo ip link del dev $LAN_PARENT
+		ip link del dev $LAN_PARENT
 	fi
 	echo -ne "* finished"
 }
@@ -93,7 +93,7 @@ _set_hairpin() {
 	echo -n "* set hairpin mode on interface '$1'"
 	for i in {1..10}; do
 		echo -n '.'
-		sudo ip netns exec $CONTAINER ip link set $WIFI_IFACE type bridge_slave hairpin on 2>/dev/null && { echo 'ok'; break; }
+		ip netns exec $CONTAINER ip link set $WIFI_IFACE type bridge_slave hairpin on 2>/dev/null && { echo 'ok'; break; }
 		sleep 3
 	done
 	if [[ $i -ge 10 ]]; then
@@ -134,6 +134,7 @@ _create_or_start_container() {
 
 _reload_fw() {
 	echo "* reloading firewall rules"
+	docker exec -i $CONTAINER /sbin/wifi reload
 	docker exec -i $CONTAINER /etc/init.d/mwan3 restart
 	docker exec -i $CONTAINER sh -c '
 		for iptables in iptables ip6tables; do
@@ -142,6 +143,7 @@ _reload_fw() {
 			done
 		done
 		/sbin/fw3 -q restart'
+		
 }
 
 _prepare_wifi() {
@@ -150,7 +152,7 @@ _prepare_wifi() {
 	_get_phy_from_dev
 	_nmcli
 	echo "* moving device $WIFI_PHY to docker network namespace"
-	sudo iw phy "$WIFI_PHY" set netns $pid
+	iw phy "$WIFI_PHY" set netns $pid
 	_set_hairpin $WIFI_IFACE
 }
 
@@ -159,16 +161,16 @@ _prepare_network() {
 		macvlan)
 			echo "* setting up host $LAN_DRIVER interface"
 			LAN_IFACE=macvlan0
-			sudo ip link add $LAN_IFACE link $LAN_PARENT type $LAN_DRIVER mode bridge
-			sudo ip link set $LAN_IFACE up
-			sudo ip route add $LAN_SUBNET dev $LAN_IFACE
+			ip link add $LAN_IFACE link $LAN_PARENT type $LAN_DRIVER mode bridge
+			ip link set $LAN_IFACE up
+			ip route add $LAN_SUBNET dev $LAN_IFACE
 		;;
 		ipvlan)
 			echo "* setting up host $LAN_DRIVER interface"
 			LAN_IFACE=ipvlan0
-			sudo ip link add $LAN_IFACE link $LAN_PARENT type $LAN_DRIVER mode l2
-			sudo ip link set $LAN_IFACE up
-			sudo ip route add $LAN_SUBNET dev $LAN_IFACE
+			ip link add $LAN_IFACE link $LAN_PARENT type $LAN_DRIVER mode l2
+			ip link set $LAN_IFACE up
+			ip route add $LAN_SUBNET dev $LAN_IFACE
 		;;
 		bridge)
 			LAN_ID=$(docker network inspect $LAN_NAME -f "{{.Id}}")
@@ -177,9 +179,9 @@ _prepare_network() {
 			# test if $LAN_PARENT is a VLAN of $WAN_PARENT, create it if it doesn't exist and add it to the bridge
 			local lan_array=(${LAN_PARENT//./ })
 			if [[ ${lan_array[0]} = $WAN_PARENT ]] && ! ip link show $LAN_PARENT >/dev/null 2>&1 ; then
-				sudo ip link add link ${lan_array[0]} name $LAN_PARENT type vlan id ${lan_array[1]}
+				ip link add link ${lan_array[0]} name $LAN_PARENT type vlan id ${lan_array[1]}
 			fi
-			sudo ip link set $LAN_PARENT master $LAN_IFACE
+			ip link set $LAN_PARENT master $LAN_IFACE
 		;;
 		*)
 			echo "invalid network driver type, must be 'bridge' or 'macvlan'"
@@ -201,7 +203,7 @@ _prepare_network() {
 	fi
 
 	echo "* getting address via DHCP"
-	sudo dhcpcd -q $LAN_IFACE
+	dhcpcd -q $LAN_IFACE
 }
 
 
@@ -212,13 +214,27 @@ _prepare_network() {
 
 
 
-restart_container () {
+restart_container() {
 	while true; do
-		if [ $(docker inspect -f '{{.State.Running}}' $CONTAINER) == "false" ]; then 
-			_create_or_start_container
+		RUNNING=$(docker inspect --format="{{ .State.Running }}" $CONTAINER)
+		if [ "$RUNNING" == "false" ]; then
+			 echo "$CONTAINER $RUNNING is not running. Sleep for 1 second exiting" >> /home/ifeanyi/Downloads/dockert-openwrtaddmultiwan/ss.txt
+			 _cleanup
+			 [ -n "$pids" ] && kill -- "${pids[@]/#/-}"
+			 
+			 ip li delete "$WIFI_PHY" 2>/dev/null
+			 modprobe iwlwifi
+			 modprobe -r iwlwifi
+			 modprobe -r iwldvm
+			 modprobe -r iwlwifi
+			 modprobe iwlwifi
+			 modprobe iwldvm
+			 sleep 3;
+			 kill -9 $pid
+			exit 1;
 			
 		fi
-		sleep  30;
+		sleep  1;
 	done
 }
 
@@ -226,28 +242,32 @@ restart_container () {
 
 monitor_parent_wan(){
 	
-#MAIN_ETH_MAC=`sudo ip netns exec $CONTAINER ip link show eth1 | grep link/ether | awk '{print $2}'` 
-MAIN_ETH_MAC=`sudo docker network inspect $WAN_NAME -f "{{.Containers}}"  | grep -o -E '([[:xdigit:]]{1,2}:){5}[[:xdigit:]]{1,2}'`
+#MAIN_ETH_MAC=`ip netns exec $CONTAINER ip link show eth1 | grep link/ether | awk '{print $2}'` 
+MAIN_ETH_MAC=$(docker network inspect $WAN_NAME -f "{{.Containers}}"  | grep -o -E '([[:xdigit:]]{1,2}:){5}[[:xdigit:]]{1,2}')
 	while true ; do
 			if  ls /sys/class/net/ | grep -q $WAN_PARENT; then
-				if ! docker exec -i $CONTAINER  ip a | grep -Eow 'eth1.*state UP';  then
-                                        #sudo ip netns exec $CONTAINER ip link delet
+				if ! docker exec -i $CONTAINER  ip a | grep -q -Eow 'eth1.*state UP';  then
+                                        #ip netns exec $CONTAINER ip link delet
 					#docker exec -i $CONTAINER  ip link set dev "eth1" down   
-                                       sudo ip netns exec $CONTAINER ip link set dev "eth1" down 
-					sudo ip link add "eth1" link $WAN_PARENT type macvlan
-					sudo ip link set dev "eth1" promisc on
-					sudo ip link set "eth1" netns  $CONTAINER
-					sudo ip netns exec $CONTAINER ifconfig "eth1" up
+                                       ip netns exec $CONTAINER ip link set dev "eth1" down 
+					ip link add "eth1" link $WAN_PARENT type macvlan
+					ip link set dev "eth1" promisc on
+					ip link set "eth1" netns  $CONTAINER
+					ip netns exec $CONTAINER ifconfig "eth1" up
                                       # if [ ! -z "$MAIN_ETH_MAC" -a "$MAIN_ETH_MAC" != " " ]; then
 				           #docker exec -i $CONTAINER  ip link set dev "eth1" down   
-                                    #   sudo ip netns exec $CONTAINER ip link set dev "eth1" down 
-	                                #  sudo ip netns exec $CONTAINER ip link set dev "eth1" address "$MAIN_ETH_MAC"
-					   #sudo ip netns exec $CONTAINER ifconfig "eth1" up
+                                    #   ip netns exec $CONTAINER ip link set dev "eth1" down 
+	                                #  ip netns exec $CONTAINER ip link set dev "eth1" address "$MAIN_ETH_MAC"
+					   #ip netns exec $CONTAINER ifconfig "eth1" up
                                           # echo "$MAIN_ETH_MAC";
                                       # fi
-					#sudo ip netns exec $CONTAINER ifconfig "eth1" up
-					sleep `/usr/bin/shuf -i 5-10 -n 1`;
+					#ip netns exec $CONTAINER ifconfig "eth1" up
+					#sleep `/usr/bin/shuf -i 5-10 -n 1`;
+                                        #_reload_fw
+					#docker exec -i $CONTAINER /etc/init.d/mwan3 restart
 				fi
+#			else
+#				echo "$WAN_PARENT not linked"
 			fi
 		
 		sleep `/usr/bin/shuf -i 6-10 -n 1`;
@@ -269,13 +289,21 @@ add_multiple_wan(){
 			indexwan=$(($indexwan+1))
 			if  ls /sys/class/net/ | grep -q $multiwan; then
 				if ! docker exec -i $CONTAINER  ls /sys/class/net/ | grep -q "wan$indexwan"; then
-				sudo ip link add "wan$indexwan" link $multiwan type macvlan
-				sudo ip link set dev "wan$indexwan" promisc on
-				sudo ip link set "wan$indexwan" netns  $CONTAINER
-				sudo ip netns exec $CONTAINER ifconfig "wan$indexwan" up
+				ip link add "wan$indexwan" link $multiwan type macvlan
+				ip link set dev "wan$indexwan" promisc on
+				ip link set "wan$indexwan" netns  $CONTAINER
+				ip netns exec $CONTAINER ifconfig "wan$indexwan" up
 				sleep `/usr/bin/shuf -i 11-15 -n 1`;
+				#_reload_fw
+                                #docker exec -i $CONTAINER /etc/init.d/mwan3 restart
 				fi
+#			else
+#				echo "$multiwan not linked"
 			fi
+			
+			
+			
+			# ip netns exec $CONTAINER ip address add 192.168.16.100/24 dev "wan$indexwan"
 		done
 		
 		sleep `/usr/bin/shuf -i 6-10 -n 1`;
@@ -288,24 +316,33 @@ add_multiple_wan(){
 
 main() {
 	cd "${SCRIPT_DIR}"
+	sleep 1;
 	_create_or_start_container
 
 	pid=$(docker inspect -f '{{.State.Pid}}' $CONTAINER)
 
 	echo "* creating netns symlink '$CONTAINER'"
-	sudo mkdir -p /var/run/netns
-	sudo ln -sf /proc/$pid/ns/net /var/run/netns/$CONTAINER
+	mkdir -p /var/run/netns
+	ln -sf /proc/$pid/ns/net /var/run/netns/$CONTAINER
 
+sleep 1;
 	_prepare_wifi
-	_prepare_network 
+	sleep 1;
+	_prepare_network
 
-add_multiple_wan & disown
+MAIN_ETH_MAC=`ip netns exec $CONTAINER ip link show eth1 | grep link/ether | awk '{print $2}'` 
+#   add_multiple_wan
+#shopt -s huponexit
+add_multiple_wan & disown 
+sleep 1;
 monitor_parent_wan & disown
 restart_container & disown
-sleep `/usr/bin/shuf -i 5-10 -n 1`;
+sleep 1;
 	_reload_fw
-#sudo docker exec -i $CONTAINER /etc/init.d/mwan3 restart
+#monitor_parent_wan & disown	
+#docker exec -i $CONTAINER /etc/init.d/mwan3 restart
 	echo "* ready"
+	pids=( $(jobs -p) )
 }
 
 main
