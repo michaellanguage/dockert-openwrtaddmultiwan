@@ -221,8 +221,6 @@ restart_container() {
 		if [ "$RUNNING" == "false" ]; then
 			 echo "$CONTAINER $RUNNING is not running. Sleep for 1 second exiting" >> /home/ifeanyi/Downloads/dockert-openwrtaddmultiwan/ss.txt
 			 _cleanup
-			 [ -n "$pids" ] && kill -- "${pids[@]/#/-}"
-			 
 			 ip li delete "$WIFI_PHY" 2>/dev/null
 			 modprobe iwlwifi
 			 modprobe -r iwlwifi
@@ -231,9 +229,9 @@ restart_container() {
 			 modprobe iwlwifi
 			 modprobe iwldvm
 			 sleep 3;
-			 kill -9 $pid
+	 		 local  LISTJOBS=$1
+	 		for pid in $LISTJOBS; do kill -9 $pid ; done ; 
 			exit 1;
-			
 		fi
 		sleep  1;
 	done
@@ -337,7 +335,8 @@ MAIN_ETH_MAC=`ip netns exec $CONTAINER ip link show eth1 | grep link/ether | awk
 add_multiple_wan & disown 
 sleep 1;
 monitor_parent_wan & disown
-restart_container & disown
+LISTJOBS=$(jobs -p)
+restart_container $LISTJOBS & disown
 sleep 1;
 	_reload_fw
 #monitor_parent_wan & disown	
